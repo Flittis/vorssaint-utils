@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 // Copyright (C) 2026 Vorssaint
 
+import CoreGraphics
 import Foundation
+import ImageIO
 
 /// Uploading a capture to a server: what the request carries, what a reply
 /// may give back, and what a settings backup does with the keys to that server.
@@ -101,6 +103,48 @@ enum CaptureUploadTests {
                 && !CaptureUploadSupport.isUsableHeaderName("")
                 && CaptureUploadSupport.isUsableHeaderName(" X-Api-Key "),
                "the settings page flags the header names a request would leave out")
+
+        // MARK: Picture
+
+        func picture(width: Int, height: Int, translucentPixel: Bool) -> CGImage? {
+            guard let context = CGContext(data: nil, width: width, height: height,
+                                          bitsPerComponent: 8, bytesPerRow: 0,
+                                          space: CGColorSpaceCreateDeviceRGB(),
+                                          bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)
+            else { return nil }
+            for x in 0..<width {
+                context.setFillColor(CGColor(red: CGFloat(x) / CGFloat(width), green: 0.4,
+                                             blue: 1 - CGFloat(x) / CGFloat(width), alpha: 1))
+                context.fill(CGRect(x: x, y: 0, width: 1, height: height))
+            }
+            if translucentPixel {
+                context.clear(CGRect(x: 0, y: 0, width: 1, height: 1))
+            }
+            return context.makeImage()
+        }
+        func decoded(_ data: Data?) -> CGImage? {
+            guard let data, let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
+            return CGImageSourceCreateImageAtIndex(source, 0, nil)
+        }
+        func hasAlpha(_ image: CGImage?) -> Bool {
+            switch image?.alphaInfo {
+            case .none, .noneSkipFirst, .noneSkipLast, nil: return false
+            default: return true
+            }
+        }
+        if let opaque = picture(width: 64, height: 16, translucentPixel: false),
+           let translucent = picture(width: 64, height: 16, translucentPixel: true) {
+            let compact = ScreenshotRenderer.compactPNGData(from: opaque, scale: 2)
+            let plain = ScreenshotRenderer.pngData(from: opaque, scale: 2)
+            suite.expect(compact?.starts(with: [137, 80, 78, 71, 13, 10, 26, 10]) == true
+                    && !hasAlpha(decoded(compact)) && hasAlpha(decoded(plain))
+                    && (compact?.count ?? .max) <= (plain?.count ?? 0),
+                   "an opaque screenshot uploads as a PNG without the alpha channel it never used")
+            suite.expect(hasAlpha(decoded(ScreenshotRenderer.compactPNGData(from: translucent, scale: 2))),
+                   "a screenshot with a translucent pixel keeps its alpha channel")
+        } else {
+            suite.expect(false, "test pictures could be drawn")
+        }
 
         // MARK: Reply
 

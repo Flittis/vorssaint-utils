@@ -136,36 +136,6 @@ final class CaptureUploadService {
         NSSound.beep()
     }
 
-    /// Owner-only, in the caches folder beside the temporary link staging. A
-    /// file an interrupted upload left behind is swept once it is a day old.
-    static func stagingDirectory() -> URL? {
-        let manager = FileManager.default
-        guard let cache = manager.urls(for: .cachesDirectory, in: .userDomainMask).first else {
-            return nil
-        }
-        let directory = cache
-            .appendingPathComponent(Bundle.main.bundleIdentifier ?? "com.vorssaint.utils",
-                                    isDirectory: true)
-            .appendingPathComponent("Custom Uploads", isDirectory: true)
-        do {
-            try manager.createDirectory(at: directory,
-                                        withIntermediateDirectories: true,
-                                        attributes: [.posixPermissions: 0o700])
-            try manager.setAttributes([.posixPermissions: 0o700], ofItemAtPath: directory.path)
-        } catch {
-            return nil
-        }
-        if let files = try? manager.contentsOfDirectory(
-            at: directory, includingPropertiesForKeys: [.contentModificationDateKey]) {
-            let cutoff = Date().addingTimeInterval(-24 * 3600)
-            for file in files where (try? file.resourceValues(
-                forKeys: [.contentModificationDateKey]).contentModificationDate) ?? .distantFuture < cutoff {
-                try? manager.removeItem(at: file)
-            }
-        }
-        return directory
-    }
-
     private var strings: CaptureUploadStrings {
         FeatureStrings.captureUpload(L10n.shared.language)
     }

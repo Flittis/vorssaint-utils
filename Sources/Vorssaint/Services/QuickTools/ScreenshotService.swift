@@ -648,7 +648,7 @@ final class ScreenshotService: ObservableObject {
                 guard let export = Self.flatten(capture, downscaleTo1x: downscale) else {
                     return nil as Data?
                 }
-                return ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
+                return ScreenshotRenderer.compactPNGData(from: export.image, scale: export.scale)
             }.value
             guard let data else {
                 CaptureUploadService.shared.announce(failure: .invalidArtifact)

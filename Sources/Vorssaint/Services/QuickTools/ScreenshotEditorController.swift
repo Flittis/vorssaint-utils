@@ -1343,7 +1343,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         }
         Task { @MainActor [weak self] in
             let data = await Task.detached(priority: .userInitiated) {
-                ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
+                ScreenshotRenderer.compactPNGData(from: export.image, scale: export.scale)
             }.value
             guard let data else {
                 CaptureUploadService.shared.announce(failure: .invalidArtifact)

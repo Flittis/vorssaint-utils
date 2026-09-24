@@ -8,7 +8,8 @@ import Foundation
 struct CaptureUploadStrings {
     let sectionTitle: String
     let enabledToggle: String
-    let caption: String
+    let screenshotCaption: String
+    let recordingCaption: String
     let fileNameCaption: String
     let addressLabel: String
     let addressInvalid: String
@@ -56,7 +57,8 @@ extension CaptureUploadStrings {
     static let enUS = CaptureUploadStrings(
         sectionTitle: "Upload to server",
         enabledToggle: "Allow upload to server",
-        caption: "Send a screenshot or recording to a server. The file is the body of one HTTPS POST request, with its type in Content-Type.",
+        screenshotCaption: "Send a screenshot to a server. The file is the body of one HTTPS POST request, with its type in Content-Type.",
+        recordingCaption: "Send a recording to a server. The file is the body of one HTTPS POST request, with its type in Content-Type. It is compressed on this Mac to fit under 100 MB first, as for temporary links.",
         fileNameCaption: "The file’s name travels in an X-File-Name header, percent-encoded outside ASCII.",
         addressLabel: "Address",
         addressInvalid: "Enter a full https:// address.",
@@ -81,7 +83,8 @@ extension CaptureUploadStrings {
     static let ptBR = CaptureUploadStrings(
         sectionTitle: "Envio para servidor",
         enabledToggle: "Permitir envio para servidor",
-        caption: "Envie uma captura de tela ou gravação para um servidor. O arquivo é o corpo de uma única solicitação HTTPS POST, com o tipo em Content-Type.",
+        screenshotCaption: "Envie uma captura de tela para um servidor. O arquivo é o corpo de uma única solicitação HTTPS POST, com o tipo em Content-Type.",
+        recordingCaption: "Envie uma gravação para um servidor. O arquivo é o corpo de uma única solicitação HTTPS POST, com o tipo em Content-Type. Ela é comprimida neste Mac para ficar abaixo de 100 MB antes, como nos links temporários.",
         fileNameCaption: "O nome do arquivo vai no cabeçalho X-File-Name, com codificação percentual fora do ASCII.",
         addressLabel: "Endereço",
         addressInvalid: "Digite um endereço https:// completo.",
@@ -106,7 +109,8 @@ extension CaptureUploadStrings {
     static let tr = CaptureUploadStrings(
         sectionTitle: "Sunucuya yükleme",
         enabledToggle: "Sunucuya yüklemeye izin ver",
-        caption: "Bir ekran görüntüsünü veya kaydı bir sunucuya gönderin. Dosya, türü Content-Type içinde belirtilen tek bir HTTPS POST isteğinin gövdesidir.",
+        screenshotCaption: "Bir ekran görüntüsünü bir sunucuya gönderin. Dosya, türü Content-Type içinde belirtilen tek bir HTTPS POST isteğinin gövdesidir.",
+        recordingCaption: "Bir kaydı bir sunucuya gönderin. Dosya, türü Content-Type içinde belirtilen tek bir HTTPS POST isteğinin gövdesidir. Kayıt, geçici bağlantılarda olduğu gibi önce bu Mac’te 100 MB altında kalacak şekilde sıkıştırılır.",
         fileNameCaption: "Dosya adı, ASCII dışındaki karakterler yüzde kodlamasıyla, X-File-Name üst bilgisinde gönderilir.",
         addressLabel: "Adres",
         addressInvalid: "Tam bir https:// adresi girin.",
@@ -131,7 +135,8 @@ extension CaptureUploadStrings {
     static let ru = CaptureUploadStrings(
         sectionTitle: "Загрузка на сервер",
         enabledToggle: "Разрешить загрузку на сервер",
-        caption: "Отправляйте снимок экрана или запись на сервер. Файл передаётся телом одного запроса HTTPS POST, а его тип указан в Content-Type.",
+        screenshotCaption: "Отправляйте снимок экрана на сервер. Файл передаётся телом одного запроса HTTPS POST, а его тип указан в Content-Type.",
+        recordingCaption: "Отправляйте запись на сервер. Файл передаётся телом одного запроса HTTPS POST, а его тип указан в Content-Type. Запись сначала сжимается на этом Mac до размера менее 100 МБ, как и для временных ссылок.",
         fileNameCaption: "Имя файла передаётся в заголовке X-File-Name; символы вне ASCII кодируются процентами.",
         addressLabel: "Адрес",
         addressInvalid: "Введите полный адрес https://.",
@@ -156,7 +161,8 @@ extension CaptureUploadStrings {
     static let es = CaptureUploadStrings(
         sectionTitle: "Subir a un servidor",
         enabledToggle: "Permitir subir a un servidor",
-        caption: "Envía una captura de pantalla o una grabación a un servidor. El archivo es el cuerpo de una única solicitud HTTPS POST, con su tipo en Content-Type.",
+        screenshotCaption: "Envía una captura de pantalla a un servidor. El archivo es el cuerpo de una única solicitud HTTPS POST, con su tipo en Content-Type.",
+        recordingCaption: "Envía una grabación a un servidor. El archivo es el cuerpo de una única solicitud HTTPS POST, con su tipo en Content-Type. Antes se comprime en este Mac para quedar por debajo de 100 MB, como en los enlaces temporales.",
         fileNameCaption: "El nombre del archivo viaja en la cabecera X-File-Name, con codificación porcentual fuera de ASCII.",
         addressLabel: "Dirección",
         addressInvalid: "Introduce una dirección https:// completa.",
@@ -181,7 +187,8 @@ extension CaptureUploadStrings {
     static let sk = CaptureUploadStrings(
         sectionTitle: "Odosielanie na server",
         enabledToggle: "Povoliť odosielanie na server",
-        caption: "Odošlite snímku obrazovky alebo nahrávku na server. Súbor tvorí telo jednej požiadavky HTTPS POST a jeho typ je uvedený v hlavičke Content-Type.",
+        screenshotCaption: "Odošlite snímku obrazovky na server. Súbor tvorí telo jednej požiadavky HTTPS POST a jeho typ je uvedený v hlavičke Content-Type.",
+        recordingCaption: "Odošlite nahrávku na server. Súbor tvorí telo jednej požiadavky HTTPS POST a jeho typ je uvedený v hlavičke Content-Type. Nahrávka sa najprv na tomto Macu skomprimuje pod 100 MB, rovnako ako pri dočasných odkazoch.",
         fileNameCaption: "Názov súboru sa posiela v hlavičke X-File-Name, znaky mimo ASCII sú percentovo kódované.",
         addressLabel: "Adresa",
         addressInvalid: "Zadajte úplnú adresu začínajúcu https://.",
@@ -206,7 +213,8 @@ extension CaptureUploadStrings {
     static let de = CaptureUploadStrings(
         sectionTitle: "Auf einen Server hochladen",
         enabledToggle: "Hochladen auf einen Server erlauben",
-        caption: "Sende ein Bildschirmfoto oder eine Aufnahme an einen Server. Die Datei ist der Inhalt einer einzelnen HTTPS-POST-Anfrage, ihr Typ steht in Content-Type.",
+        screenshotCaption: "Sende ein Bildschirmfoto an einen Server. Die Datei ist der Inhalt einer einzelnen HTTPS-POST-Anfrage, ihr Typ steht in Content-Type.",
+        recordingCaption: "Sende eine Aufnahme an einen Server. Die Datei ist der Inhalt einer einzelnen HTTPS-POST-Anfrage, ihr Typ steht in Content-Type. Die Aufnahme wird zuvor auf diesem Mac auf unter 100 MB komprimiert, wie bei temporären Links.",
         fileNameCaption: "Der Dateiname steht im Header X-File-Name, außerhalb von ASCII prozentkodiert.",
         addressLabel: "Adresse",
         addressInvalid: "Gib eine vollständige https://-Adresse ein.",
@@ -231,7 +239,8 @@ extension CaptureUploadStrings {
     static let fr = CaptureUploadStrings(
         sectionTitle: "Envoi vers un serveur",
         enabledToggle: "Autoriser l’envoi vers un serveur",
-        caption: "Envoyez une capture d’écran ou un enregistrement vers un serveur. Le fichier est le corps d’une seule requête HTTPS POST, avec son type dans Content-Type.",
+        screenshotCaption: "Envoyez une capture d’écran vers un serveur. Le fichier est le corps d’une seule requête HTTPS POST, avec son type dans Content-Type.",
+        recordingCaption: "Envoyez un enregistrement vers un serveur. Le fichier est le corps d’une seule requête HTTPS POST, avec son type dans Content-Type. Il est d’abord compressé sur ce Mac à moins de 100 Mo, comme pour les liens temporaires.",
         fileNameCaption: "Le nom du fichier est transmis dans l’en-tête X-File-Name, encodé en pourcentage hors ASCII.",
         addressLabel: "Adresse",
         addressInvalid: "Saisissez une adresse https:// complète.",
@@ -256,7 +265,8 @@ extension CaptureUploadStrings {
     static let it = CaptureUploadStrings(
         sectionTitle: "Caricamento su un server",
         enabledToggle: "Consenti il caricamento su un server",
-        caption: "Invia uno screenshot o una registrazione a un server. Il file è il corpo di una singola richiesta HTTPS POST, con il tipo in Content-Type.",
+        screenshotCaption: "Invia uno screenshot a un server. Il file è il corpo di una singola richiesta HTTPS POST, con il tipo in Content-Type.",
+        recordingCaption: "Invia una registrazione a un server. Il file è il corpo di una singola richiesta HTTPS POST, con il tipo in Content-Type. Viene prima compressa su questo Mac sotto i 100 MB, come per i link temporanei.",
         fileNameCaption: "Il nome del file viaggia nell’intestazione X-File-Name, con codifica percentuale fuori dall’ASCII.",
         addressLabel: "Indirizzo",
         addressInvalid: "Inserisci un indirizzo https:// completo.",
@@ -281,7 +291,8 @@ extension CaptureUploadStrings {
     static let ja = CaptureUploadStrings(
         sectionTitle: "サーバへのアップロード",
         enabledToggle: "サーバへのアップロードを許可",
-        caption: "スクリーンショットや録画をサーバに送ります。ファイルは1回のHTTPS POSTリクエストの本文として送られ、種類はContent-Typeで示されます。",
+        screenshotCaption: "スクリーンショットをサーバに送ります。ファイルは1回のHTTPS POSTリクエストの本文として送られ、種類はContent-Typeで示されます。",
+        recordingCaption: "録画をサーバに送ります。ファイルは1回のHTTPS POSTリクエストの本文として送られ、種類はContent-Typeで示されます。録画は一時リンクと同様に、まずこのMacで100 MB未満に圧縮されます。",
         fileNameCaption: "ファイル名はX-File-Nameヘッダで送られ、ASCII以外の文字はパーセントエンコードされます。",
         addressLabel: "アドレス",
         addressInvalid: "https:// から始まる完全なアドレスを入力してください。",
@@ -306,7 +317,8 @@ extension CaptureUploadStrings {
     static let ko = CaptureUploadStrings(
         sectionTitle: "서버에 업로드",
         enabledToggle: "서버에 업로드 허용",
-        caption: "스크린샷이나 녹화를 서버로 보냅니다. 파일은 HTTPS POST 요청 하나의 본문으로 전송되며, 종류는 Content-Type에 담깁니다.",
+        screenshotCaption: "스크린샷을 서버로 보냅니다. 파일은 HTTPS POST 요청 하나의 본문으로 전송되며, 종류는 Content-Type에 담깁니다.",
+        recordingCaption: "녹화를 서버로 보냅니다. 파일은 HTTPS POST 요청 하나의 본문으로 전송되며, 종류는 Content-Type에 담깁니다. 녹화는 임시 링크와 마찬가지로 먼저 이 Mac에서 100MB 미만으로 압축됩니다.",
         fileNameCaption: "파일 이름은 X-File-Name 헤더로 전송되며, ASCII가 아닌 문자는 퍼센트 인코딩됩니다.",
         addressLabel: "주소",
         addressInvalid: "https://로 시작하는 전체 주소를 입력하세요.",
@@ -331,7 +343,8 @@ extension CaptureUploadStrings {
     static let zhHans = CaptureUploadStrings(
         sectionTitle: "上传到服务器",
         enabledToggle: "允许上传到服务器",
-        caption: "把截图或录制发送到服务器。文件作为一次 HTTPS POST 请求的正文发送，类型写在 Content-Type 中。",
+        screenshotCaption: "把截图发送到服务器。文件作为一次 HTTPS POST 请求的正文发送，类型写在 Content-Type 中。",
+        recordingCaption: "把录制发送到服务器。文件作为一次 HTTPS POST 请求的正文发送，类型写在 Content-Type 中。录制会像临时链接一样，先在这台 Mac 上压缩到 100 MB 以内。",
         fileNameCaption: "文件名通过 X-File-Name 请求头发送，非 ASCII 字符会进行百分号编码。",
         addressLabel: "地址",
         addressInvalid: "请输入以 https:// 开头的完整地址。",
@@ -356,7 +369,8 @@ extension CaptureUploadStrings {
     static let zhTW = CaptureUploadStrings(
         sectionTitle: "上傳到伺服器",
         enabledToggle: "允許上傳到伺服器",
-        caption: "把螢幕截圖或錄製傳送到伺服器。檔案作為一次 HTTPS POST 要求的內容傳送，類型寫在 Content-Type 中。",
+        screenshotCaption: "把螢幕截圖傳送到伺服器。檔案作為一次 HTTPS POST 要求的內容傳送，類型寫在 Content-Type 中。",
+        recordingCaption: "把錄製傳送到伺服器。檔案作為一次 HTTPS POST 要求的內容傳送，類型寫在 Content-Type 中。錄製會像暫時連結一樣，先在這台 Mac 上壓縮至 100 MB 以內。",
         fileNameCaption: "檔案名稱透過 X-File-Name 標頭傳送，非 ASCII 字元會進行百分比編碼。",
         addressLabel: "位址",
         addressInvalid: "請輸入以 https:// 開頭的完整位址。",
@@ -381,7 +395,8 @@ extension CaptureUploadStrings {
     static let zhHK = CaptureUploadStrings(
         sectionTitle: "上載到伺服器",
         enabledToggle: "允許上載到伺服器",
-        caption: "把螢幕截圖或錄製傳送到伺服器。檔案作為一次 HTTPS POST 要求的內容傳送，類型寫在 Content-Type 中。",
+        screenshotCaption: "把螢幕截圖傳送到伺服器。檔案作為一次 HTTPS POST 要求的內容傳送，類型寫在 Content-Type 中。",
+        recordingCaption: "把錄製傳送到伺服器。檔案作為一次 HTTPS POST 要求的內容傳送，類型寫在 Content-Type 中。錄製會像暫時連結一樣，先在這部 Mac 上壓縮至 100 MB 以內。",
         fileNameCaption: "檔案名稱透過 X-File-Name 標頭傳送，非 ASCII 字元會進行百分比編碼。",
         addressLabel: "位址",
         addressInvalid: "請輸入以 https:// 開頭的完整位址。",
@@ -406,7 +421,8 @@ extension CaptureUploadStrings {
     static let uk = CaptureUploadStrings(
         sectionTitle: "Завантаження на сервер",
         enabledToggle: "Дозволити завантаження на сервер",
-        caption: "Надсилайте знімок екрана або запис на сервер. Файл є тілом одного запиту HTTPS POST, а його тип указано в Content-Type.",
+        screenshotCaption: "Надсилайте знімок екрана на сервер. Файл є тілом одного запиту HTTPS POST, а його тип указано в Content-Type.",
+        recordingCaption: "Надсилайте запис на сервер. Файл є тілом одного запиту HTTPS POST, а його тип указано в Content-Type. Запис спочатку стискається на цьому Mac до розміру менше 100 МБ, як і для тимчасових посилань.",
         fileNameCaption: "Ім’я файлу передається в заголовку X-File-Name; символи поза ASCII кодуються відсотками.",
         addressLabel: "Адреса",
         addressInvalid: "Введіть повну адресу, що починається з https://.",

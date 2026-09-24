@@ -38,7 +38,7 @@ struct CaptureUploadSettings: View {
         Section {
             Toggle(strings.enabledToggle, isOn: $enabled)
             if enabled {
-                Text(strings.caption)
+                Text(kind == .recording ? strings.recordingCaption : strings.screenshotCaption)
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 addressRow
