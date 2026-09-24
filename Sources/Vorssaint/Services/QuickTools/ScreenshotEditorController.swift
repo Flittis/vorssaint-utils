@@ -1334,6 +1334,14 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         }
     }
 
+    /// The edited image as it would be saved, in a temporary file for the
+    /// system share sheet.
+    func shareFile() -> URL? {
+        guard let export = model.exportImage() else { return nil }
+        return ScreenshotService.temporaryExportFile(image: export.image, scale: export.scale,
+                                                     strings: strings)
+    }
+
     /// The editor stays open afterwards, as it does after a temporary link.
     func upload(completion: @escaping () -> Void) {
         guard let export = model.exportImage() else {

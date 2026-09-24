@@ -23,6 +23,7 @@ struct ScreenshotEditorView: View {
     @State private var toolOptionsShown = false
     @State private var sharing = false
     @State private var sharedRecord: ScreenshotShareRecord?
+    @State private var shareAnchor = ShelfSharePickerAnchor.Anchor()
     @State private var uploading = false
     @AppStorage(DefaultsKey.screenshotToolOrder) private var toolOrderRaw =
         ScreenshotSupport.Tool.defaultOrderStorage
@@ -761,15 +762,31 @@ struct ScreenshotEditorView: View {
 
             Divider().frame(height: 16).padding(.horizontal, 3)
 
+            Button {
+                commitEditingTextIfNeeded()
+                guard let url = controller.shareFile() else {
+                    NSSound.beep()
+                    return
+                }
+                shareAnchor.present([url]) { chosen in
+                    if chosen { model.markExported() }
+                }
+            } label: {
+                Image(systemName: "square.and.arrow.up")
+                    .frame(width: 24, height: 24)
+            }
+            .buttonStyle(.borderless)
+            .background(ShelfSharePickerAnchor(anchor: shareAnchor))
+            .screenshotSafeHelp(strings.shareButton)
+            .accessibilityLabel(strings.shareButton)
+
             if sharingEnabled {
                 shareMenu
-                Divider().frame(height: 16).padding(.horizontal, 3)
             }
-
             if let uploadHost {
                 uploadButton(host: uploadHost)
-                Divider().frame(height: 16).padding(.horizontal, 3)
             }
+            Divider().frame(height: 16).padding(.horizontal, 3)
 
             Menu {
                 Button(strings.saveButton) {
@@ -832,8 +849,31 @@ struct ScreenshotEditorView: View {
         .menuStyle(.borderlessButton)
         .fixedSize()
         .disabled(sharing)
-        .screenshotSafeHelp(sharing ? strings.sharingHUD : strings.shareButton)
-        .accessibilityLabel(strings.shareButton)
+        .screenshotSafeHelp(sharing ? strings.sharingHUD : strings.shareSectionTitle)
+        .accessibilityLabel(strings.shareSectionTitle)
+    }
+
+    private func uploadButton(host: String) -> some View {
+        Button {
+            commitEditingTextIfNeeded()
+            uploading = true
+            controller.upload { uploading = false }
+        } label: {
+            Group {
+                if uploading {
+                    ProgressView()
+                        .controlSize(.mini)
+                } else {
+                    Image(systemName: "icloud.and.arrow.up")
+                }
+            }
+            .frame(width: 24, height: 24)
+        }
+        .buttonStyle(.borderless)
+        .disabled(uploading)
+        .screenshotSafeHelp(uploading ? uploadStrings.uploadingHUD
+                            : String(format: uploadStrings.menuItemFormat, host))
+        .accessibilityLabel(String(format: uploadStrings.menuItemFormat, host))
     }
 
     private func uploadButton(host: String) -> some View {
