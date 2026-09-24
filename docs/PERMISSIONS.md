@@ -49,7 +49,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 **What uses it.** The window switcher and Dock Preview for live thumbnails and titles, screenshots and copy text from screen for the area you select, and the screen recorder for the area, window or display you choose.
 
-**If you say no.** The switcher falls back to app icons. Dock Preview, screenshots, copy text from screen and screen recording stay unavailable. Previews and text recognition remain local. A screenshot or recording is written only when you ask, and leaves your Mac only if you explicitly create a temporary link.
+**If you say no.** The switcher falls back to app icons. Dock Preview, screenshots, copy text from screen and screen recording stay unavailable. Previews and text recognition remain local. A screenshot or recording is written only when you ask, and leaves your Mac only if you explicitly create a temporary link or upload it to a server you configured.
 
 **Optional.** Yes.
 
@@ -71,7 +71,7 @@ You can review or change every grant in System Settings, under Privacy and Secur
 
 **If you say no.** Screen recording still works without your microphone. System audio remains a separate choice.
 
-**Optional.** Yes. Microphone audio stays in the recording on your Mac unless you explicitly create a temporary link for the finished video.
+**Optional.** Yes. Microphone audio stays in the recording on your Mac unless you explicitly create a temporary link for the finished video or upload it to a server you configured.
 
 ## Camera
 

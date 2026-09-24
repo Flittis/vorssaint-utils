@@ -23,6 +23,12 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         case cancelled
     }
 
+    enum UploadOutcome {
+        case uploaded(CaptureUploadService.Outcome)
+        case failed(CaptureUploadService.Failure)
+        case cancelled
+    }
+
     let take: RecorderTakeStore.Take
     let player: AVPlayer
 
@@ -1400,6 +1406,47 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
         }
     }
 
+    /// Exports at full quality, the way Save does: the server is the person's
+    /// own, so nothing is squeezed under a limit on their behalf. The staged
+    /// copy goes as soon as the transfer ends either way.
+    func upload(completion: @escaping (UploadOutcome) -> Void) {
+        guard !isExporting else { return }
+        guard let directory = CaptureUploadService.stagingDirectory() else {
+            completion(.failed(.invalidArtifact))
+            return
+        }
+        let staged = directory
+            .appendingPathComponent(UUID().uuidString, isDirectory: false)
+            .appendingPathExtension("mp4")
+        export(.video, to: staged, rememberDestination: false) { [weak self] failure in
+            guard let self else {
+                try? FileManager.default.removeItem(at: staged)
+                return
+            }
+            if let failure {
+                try? FileManager.default.removeItem(at: staged)
+                completion(failure == .cancelled ? .cancelled : .failed(.invalidArtifact))
+                return
+            }
+            self.isExporting = true
+            self.exportProgress = 1
+            self.exportPhase = .uploading
+            self.shareTask = Task { @MainActor [weak self] in
+                defer { try? FileManager.default.removeItem(at: staged) }
+                let outcome: UploadOutcome
+                do {
+                    outcome = .uploaded(try await CaptureUploadService.shared.upload(recordingAt: staged))
+                } catch let failure as CaptureUploadService.Failure {
+                    outcome = Task.isCancelled ? .cancelled : .failed(failure)
+                } catch {
+                    outcome = Task.isCancelled ? .cancelled : .failed(.unavailable)
+                }
+                self?.finishSharing()
+                completion(outcome)
+            }
+        }
+    }
+
     private func finishSharing() {
         isExporting = false
         exporter = nil
@@ -1540,6 +1587,19 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
             case .failure(.failed):
                 NSSound.beep()
                 QuickToolHUD.show(icon: "link", message: self.shareStrings.failed)
+            }
+        }
+    }
+
+    func upload() {
+        model.upload { outcome in
+            switch outcome {
+            case let .uploaded(result):
+                CaptureUploadService.shared.announce(result)
+            case let .failed(failure):
+                CaptureUploadService.shared.announce(failure: failure)
+            case .cancelled:
+                break
             }
         }
     }

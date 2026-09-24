@@ -1334,6 +1334,35 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         }
     }
 
+    /// The editor stays open afterwards, as it does after a temporary link.
+    func upload(completion: @escaping () -> Void) {
+        guard let export = model.exportImage() else {
+            CaptureUploadService.shared.announce(failure: .invalidArtifact)
+            completion()
+            return
+        }
+        Task { @MainActor [weak self] in
+            let data = await Task.detached(priority: .userInitiated) {
+                ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
+            }.value
+            guard let data else {
+                CaptureUploadService.shared.announce(failure: .invalidArtifact)
+                completion()
+                return
+            }
+            do {
+                let outcome = try await CaptureUploadService.shared.upload(pngData: data)
+                self?.model.markExported()
+                CaptureUploadService.shared.announce(outcome)
+            } catch let failure as CaptureUploadService.Failure {
+                CaptureUploadService.shared.announce(failure: failure)
+            } catch {
+                CaptureUploadService.shared.announce(failure: .unavailable)
+            }
+            completion()
+        }
+    }
+
     /// Every final output closes the editor: the capture leaves the app
     /// and the window's job is done, so nothing lingers to tidy up.
     func copyToClipboard() {

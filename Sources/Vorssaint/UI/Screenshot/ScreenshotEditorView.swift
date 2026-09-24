@@ -23,14 +23,25 @@ struct ScreenshotEditorView: View {
     @State private var toolOptionsShown = false
     @State private var sharing = false
     @State private var sharedRecord: ScreenshotShareRecord?
+    @State private var uploading = false
     @AppStorage(DefaultsKey.screenshotToolOrder) private var toolOrderRaw =
         ScreenshotSupport.Tool.defaultOrderStorage
     @AppStorage(DefaultsKey.screenshotToolShortcuts) private var bindingsRaw = ""
     @AppStorage(DefaultsKey.screenshotToolShortcutsEnabled) private var toolShortcutsEnabled = true
     @AppStorage(DefaultsKey.screenshotSharingEnabled) private var sharingEnabled = true
+    @AppStorage(DefaultsKey.captureUploadEnabled) private var uploadEnabled = false
+    @AppStorage(DefaultsKey.captureUploadDestination) private var uploadDestinationRaw = ""
 
     private var strings: ScreenshotFeatureStrings {
         FeatureStrings.screenshot(l10n.language)
+    }
+
+    private var uploadStrings: CaptureUploadStrings {
+        FeatureStrings.captureUpload(l10n.language)
+    }
+
+    private var uploadHost: String? {
+        CaptureUploadSupport.host(raw: uploadDestinationRaw, enabled: uploadEnabled)
     }
 
     private var recentCapturesTitle: String {
@@ -755,6 +766,11 @@ struct ScreenshotEditorView: View {
                 Divider().frame(height: 16).padding(.horizontal, 3)
             }
 
+            if let uploadHost {
+                uploadButton(host: uploadHost)
+                Divider().frame(height: 16).padding(.horizontal, 3)
+            }
+
             Menu {
                 Button(strings.saveButton) {
                     commitEditingTextIfNeeded()
@@ -818,6 +834,29 @@ struct ScreenshotEditorView: View {
         .disabled(sharing)
         .screenshotSafeHelp(sharing ? strings.sharingHUD : strings.shareButton)
         .accessibilityLabel(strings.shareButton)
+    }
+
+    private func uploadButton(host: String) -> some View {
+        Button {
+            commitEditingTextIfNeeded()
+            uploading = true
+            controller.upload { uploading = false }
+        } label: {
+            Group {
+                if uploading {
+                    ProgressView()
+                        .controlSize(.mini)
+                } else {
+                    Image(systemName: "icloud.and.arrow.up")
+                }
+            }
+            .frame(width: 24, height: 24)
+        }
+        .buttonStyle(.borderless)
+        .disabled(uploading)
+        .screenshotSafeHelp(uploading ? uploadStrings.uploadingHUD
+                            : String(format: uploadStrings.menuItemFormat, host))
+        .accessibilityLabel(String(format: uploadStrings.menuItemFormat, host))
     }
 
     // MARK: - Bottom row

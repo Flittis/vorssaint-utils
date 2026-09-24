@@ -469,6 +469,13 @@ final class ScreenshotService: ObservableObject {
                 }
                 self.shareDirect(capture, duration: duration, completion: completion)
             },
+            upload: { [weak self] completion in
+                guard let self else {
+                    completion()
+                    return
+                }
+                self.uploadDirect(capture, completion: completion)
+            },
             onClose: { [weak self] in self?.preview = nil })
         preview = controller
         controller.show()
@@ -630,6 +637,33 @@ final class ScreenshotService: ObservableObject {
                 NSSound.beep()
                 completion(nil)
             }
+        }
+    }
+
+    private func uploadDirect(_ capture: ScreenshotSelectionController.Capture,
+                              completion: @escaping () -> Void) {
+        let downscale = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
+        Task { @MainActor in
+            let data = await Task.detached(priority: .userInitiated) {
+                guard let export = Self.flatten(capture, downscaleTo1x: downscale) else {
+                    return nil as Data?
+                }
+                return ScreenshotRenderer.pngData(from: export.image, scale: export.scale)
+            }.value
+            guard let data else {
+                CaptureUploadService.shared.announce(failure: .invalidArtifact)
+                completion()
+                return
+            }
+            do {
+                CaptureUploadService.shared.announce(
+                    try await CaptureUploadService.shared.upload(pngData: data))
+            } catch let failure as CaptureUploadService.Failure {
+                CaptureUploadService.shared.announce(failure: failure)
+            } catch {
+                CaptureUploadService.shared.announce(failure: .unavailable)
+            }
+            completion()
         }
     }
 
