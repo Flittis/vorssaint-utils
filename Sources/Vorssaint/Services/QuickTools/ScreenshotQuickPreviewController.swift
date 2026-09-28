@@ -12,6 +12,7 @@ final class ScreenshotQuickPreviewModel: ObservableObject {
     @Published var qr: BarcodeDetector.Reading?
     @Published var disabledActions: Set<ScreenshotQuickPreviewController.Action> = []
     @Published var sharing = false
+    @Published var uploading = false
     @Published var sharedRecord: ScreenshotShareRecord?
     @Published var deletingShare = false
 }
@@ -42,6 +43,7 @@ final class ScreenshotQuickPreviewController {
     private let shareFile: () -> URL?
     private let shareAnchor = ShelfSharePickerAnchor.Anchor()
     private var systemSharing = false
+    private let upload: (@escaping () -> Void) -> Void
     private let onClose: () -> Void
     private let model = ScreenshotQuickPreviewModel()
     private var panel: ScreenshotQuickPreviewPanel?
@@ -66,6 +68,7 @@ final class ScreenshotQuickPreviewController {
          share: @escaping (ScreenshotShareDuration,
                            @escaping (ScreenshotShareRecord?) -> Void) -> Void,
          shareFile: @escaping () -> URL?,
+         upload: @escaping (@escaping () -> Void) -> Void,
          onClose: @escaping () -> Void) {
         self.capture = capture
         self.strings = strings
@@ -73,6 +76,7 @@ final class ScreenshotQuickPreviewController {
         self.action = action
         self.share = share
         self.shareFile = shareFile
+        self.upload = upload
         self.onClose = onClose
     }
 
@@ -95,6 +99,7 @@ final class ScreenshotQuickPreviewController {
             share: { [weak self] duration in self?.performShare(duration) },
             systemShare: { [weak self] in self?.performSystemShare() },
             shareAnchor: shareAnchor,
+            upload: { [weak self] in self?.performUpload() },
             copySharedLink: { [weak self] in self?.copySharedLink() },
             deleteSharedLink: { [weak self] in self?.deleteSharedLink() },
             showQR: { [weak self] in self?.showQRResult() },
@@ -325,6 +330,18 @@ final class ScreenshotQuickPreviewController {
         }
     }
 
+    private func performUpload() {
+        guard !closed, !model.sharing, !model.uploading else { return }
+        dismissWork?.cancel()
+        dismissWork = nil
+        model.uploading = true
+        upload { [weak self] in
+            guard let self, !self.closed else { return }
+            self.model.uploading = false
+            self.scheduleAutoDismiss()
+        }
+    }
+
     private func copySharedLink() {
         guard let record = model.sharedRecord else { return }
         dismissWork?.cancel()
@@ -409,7 +426,7 @@ final class ScreenshotQuickPreviewController {
     }
 
     private func scheduleAutoDismiss() {
-        guard !closed, !pointerInside, !systemSharing, !model.sharing, !model.deletingShare else { return }
+        guard !closed, !pointerInside, !systemSharing, !model.sharing, !model.uploading, !model.deletingShare else { return }
         dismissWork?.cancel()
         let work = DispatchWorkItem { [weak self] in self?.close() }
         dismissWork = work
@@ -498,6 +515,7 @@ private struct ScreenshotQuickPreviewView: View {
     let share: (ScreenshotShareDuration) -> Void
     let systemShare: () -> Void
     let shareAnchor: ShelfSharePickerAnchor.Anchor
+    let upload: () -> Void
     let copySharedLink: () -> Void
     let deleteSharedLink: () -> Void
     let showQR: () -> Void
@@ -510,6 +528,16 @@ private struct ScreenshotQuickPreviewView: View {
         return view
     }
     @AppStorage(DefaultsKey.screenshotSharingEnabled) private var sharingEnabled = true
+    @AppStorage(DefaultsKey.captureUploadEnabled) private var uploadEnabled = false
+    @AppStorage(DefaultsKey.captureUploadDestination) private var uploadDestinationRaw = ""
+
+    private var uploadStrings: CaptureUploadStrings {
+        FeatureStrings.captureUpload(L10n.shared.language)
+    }
+
+    private var uploadHost: String? {
+        CaptureUploadSupport.host(raw: uploadDestinationRaw, enabled: uploadEnabled)
+    }
 
     var body: some View {
         if actionsOnly { actionBar }
@@ -556,6 +584,9 @@ private struct ScreenshotQuickPreviewView: View {
             }
             if sharingEnabled, model.sharedRecord == nil {
                 shareMenu
+            }
+            if let uploadHost {
+                uploadButton(host: uploadHost)
             }
             if !embedded { Spacer(minLength: 4) }
             if embedded {
@@ -760,6 +791,26 @@ private struct ScreenshotQuickPreviewView: View {
         .disabled(model.sharing)
         .screenshotSafeHelp(model.sharing ? strings.sharingHUD : strings.shareSectionTitle)
         .accessibilityLabel(strings.shareSectionTitle)
+    }
+
+    private func uploadButton(host: String) -> some View {
+        Button(action: upload) {
+            Group {
+                if model.uploading {
+                    ProgressView()
+                        .controlSize(.small)
+                } else {
+                    Image(systemName: "icloud.and.arrow.up")
+                }
+            }
+            .frame(width: embedded ? 28 : 22, height: embedded ? 28 : 18)
+        }
+        .modifier(ScreenshotPreviewActionStyle(embedded: embedded))
+        .controlSize(.small)
+        .disabled(model.uploading)
+        .screenshotSafeHelp(model.uploading ? uploadStrings.uploadingHUD
+                            : String(format: uploadStrings.menuItemFormat, host))
+        .accessibilityLabel(String(format: uploadStrings.menuItemFormat, host))
     }
 
     private func actionButton(symbol: String,

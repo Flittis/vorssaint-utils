@@ -13,6 +13,7 @@ enum ScreenshotPreviewHoverTests {
     final class Model {
         var disabledActions: Set<Action> = []
         var sharing = false
+        var uploading = false
         var deletingShare = false
     }
 
@@ -109,6 +110,21 @@ enum ScreenshotPreviewHoverTests {
             sharingController.scheduleAutoDismiss()
             DispatchQueue.main.advance(duration)
             suite.expect(sharingController.closed, "a cancelled share sheet resumes the dismissal delay")
+
+            // An upload in progress holds the preview the way a temporary link
+            // does: nothing is scheduled until it reports back.
+            DispatchQueue.main = NotchScreenRefreshContract.Scheduler()
+            let uploadingController = Controller()
+            uploadingController.autoDismissDuration = duration
+            uploadingController.model.uploading = true
+            uploadingController.scheduleAutoDismiss()
+            DispatchQueue.main.advance(duration)
+            suite.expect(!uploadingController.closed && DispatchQueue.main.pending == 0,
+                         "an upload in progress keeps the preview open with no dismissal armed")
+            uploadingController.model.uploading = false
+            uploadingController.scheduleAutoDismiss()
+            DispatchQueue.main.advance(duration)
+            suite.expect(uploadingController.closed, "the preview dismisses once the upload has reported back")
         }
     }
 }
