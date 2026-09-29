@@ -1212,7 +1212,9 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     }
 
     /// Closes without the discard confirmation used by the titlebar button.
+    /// What was discarded is not sent, so an upload on its way stops.
     func discardAndClose() {
+        uploadTask?.cancel()
         window?.close()
     }
 
@@ -1570,8 +1572,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         alert.addButton(withTitle: strings.cancel)
         alert.alertStyle = .warning
         guard alert.runModal() == .alertFirstButtonReturn else { return false }
-        // What was discarded is not sent. A close with nothing to discard
-        // lets an upload finish, the way it finishes after the preview.
+        // What was discarded is not sent, as with Trash. A close with nothing
+        // to discard lets an upload finish, as Esc does in the preview.
         uploadTask?.cancel()
         return true
     }
