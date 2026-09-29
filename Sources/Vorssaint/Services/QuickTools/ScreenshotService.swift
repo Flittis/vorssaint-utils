@@ -830,6 +830,7 @@ final class ScreenshotService: ObservableObject {
 
     private func uploadDirect(_ capture: ScreenshotSelectionController.Capture,
                               completion: @escaping () -> Void) {
+        let destination = CaptureUploadService.shared.destination
         let downscale = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
         Task { @MainActor in
             let data = await Task.detached(priority: .userInitiated) {
@@ -845,7 +846,7 @@ final class ScreenshotService: ObservableObject {
             }
             do {
                 CaptureUploadService.shared.announce(
-                    try await CaptureUploadService.shared.upload(pngData: data))
+                    try await CaptureUploadService.shared.upload(pngData: data, to: destination))
             } catch let failure as CaptureUploadService.Failure {
                 CaptureUploadService.shared.announce(failure: failure)
             } catch {

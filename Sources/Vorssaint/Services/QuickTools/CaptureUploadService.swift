@@ -40,22 +40,24 @@ final class CaptureUploadService {
         session = URLSession(configuration: configuration)
     }
 
+    /// Read once when the person asks for an upload and handed to it, so a
+    /// change made while the file is prepared never redirects that upload.
     var destination: CaptureUploadSupport.Destination {
         CaptureUploadSupport.Destination.decoded(
             UserDefaults.standard.string(forKey: DefaultsKey.captureUploadDestination))
     }
 
     /// A hidden button is not a gate on its own, so the request path asks
-    /// the switch again.
+    /// the switch again. Turning uploads off stops one still being prepared.
     private var isEnabled: Bool {
         UserDefaults.standard.bool(forKey: DefaultsKey.captureUploadEnabled)
     }
 
-    func upload(pngData: Data) async throws -> Outcome {
+    func upload(pngData: Data,
+                to destination: CaptureUploadSupport.Destination) async throws -> Outcome {
         guard !pngData.isEmpty,
               pngData.starts(with: [137, 80, 78, 71, 13, 10, 26, 10])
         else { throw Failure.invalidArtifact }
-        let destination = destination
         guard isEnabled,
               let host = CaptureUploadSupport.host(destination),
               let request = CaptureUploadSupport.request(
@@ -76,7 +78,8 @@ final class CaptureUploadService {
         return try outcome(kind: .screenshot, host: host, data: data, response: response)
     }
 
-    func upload(recordingAt file: URL) async throws -> Outcome {
+    func upload(recordingAt file: URL,
+                to destination: CaptureUploadSupport.Destination) async throws -> Outcome {
         guard let values = try? file.resourceValues(
             forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey]),
               values.isRegularFile == true,
@@ -84,7 +87,6 @@ final class CaptureUploadService {
               let bytes = values.fileSize,
               bytes > 0
         else { throw Failure.invalidArtifact }
-        let destination = destination
         guard isEnabled,
               let host = CaptureUploadSupport.host(destination),
               let request = CaptureUploadSupport.request(
