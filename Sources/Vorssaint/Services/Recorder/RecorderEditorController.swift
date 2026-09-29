@@ -1638,6 +1638,9 @@ final class RecorderEditorController: NSObject, NSWindowDelegate {
             guard let self else { return }
             switch outcome {
             case let .uploaded(result):
+                // Unlike a temporary link, the server keeps the video, so it
+                // counts as saved the way a written file does.
+                self.exported = true
                 CaptureUploadService.shared.announce(result)
             case let .failed(failure):
                 CaptureUploadService.shared.announce(failure: failure)
