@@ -1375,6 +1375,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
 
     /// The editor stays open afterwards, as it does after a temporary link.
     func upload(completion: @escaping () -> Void) {
+        let destination = CaptureUploadService.shared.destination
         let snapshot = model.exportSnapshot()
         guard let export = model.exportImage() else {
             CaptureUploadService.shared.announce(failure: .invalidArtifact)
@@ -1391,7 +1392,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
                 return
             }
             do {
-                let outcome = try await CaptureUploadService.shared.upload(pngData: data)
+                let outcome = try await CaptureUploadService.shared.upload(pngData: data,
+                                                                           to: destination)
                 self?.model.markExported(snapshot)
                 CaptureUploadService.shared.announce(outcome)
             } catch let failure as CaptureUploadService.Failure {

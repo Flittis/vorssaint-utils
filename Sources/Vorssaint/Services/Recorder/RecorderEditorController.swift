@@ -1412,6 +1412,7 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
     /// goes as soon as the transfer ends either way.
     func upload(completion: @escaping (UploadOutcome) -> Void) {
         guard !isExporting else { return }
+        let destination = CaptureUploadService.shared.destination
         pause()
         isExporting = true
         exportProgress = 0
@@ -1460,7 +1461,8 @@ final class RecorderEditorModel: ObservableObject, BackdropEditing {
             let outcome: UploadOutcome
             do {
                 outcome = .uploaded(
-                    try await CaptureUploadService.shared.upload(recordingAt: artifact.fileURL))
+                    try await CaptureUploadService.shared.upload(recordingAt: artifact.fileURL,
+                                                                to: destination))
             } catch let failure as CaptureUploadService.Failure {
                 outcome = Task.isCancelled ? .cancelled : .failed(failure)
             } catch {
