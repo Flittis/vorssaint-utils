@@ -505,6 +505,34 @@ final class ScreenshotEditorModel: ObservableObject, BackdropEditing {
         recordCleanState()
     }
 
+    /// What an export was rendered from, for an output that finishes later.
+    struct ExportSnapshot {
+        fileprivate let image: CGImage
+        fileprivate let annotations: [ScreenshotSupport.Annotation]
+        fileprivate let backdropStyle: ScreenshotSupport.BackdropStyle
+        fileprivate let watermarkStyle: ScreenshotSupport.WatermarkStyle
+        fileprivate let annotationShadowsEnabled: Bool
+    }
+
+    func exportSnapshot() -> ExportSnapshot {
+        ExportSnapshot(image: baseImage,
+                       annotations: annotations,
+                       backdropStyle: backdropStyle.sanitized(),
+                       watermarkStyle: watermarkStyle.sanitized(),
+                       annotationShadowsEnabled: annotationShadowsEnabled)
+    }
+
+    /// Marks only what was sent as saved, so an edit made while it was on
+    /// its way still counts as unsaved.
+    func markExported(_ snapshot: ExportSnapshot) {
+        cleanImage = snapshot.image
+        cleanAnnotations = snapshot.annotations
+        cleanBackdropStyle = snapshot.backdropStyle
+        cleanWatermarkStyle = snapshot.watermarkStyle
+        cleanAnnotationShadowsEnabled = snapshot.annotationShadowsEnabled
+        refreshDirtyState()
+    }
+
     private func recordCleanState() {
         cleanImage = baseImage
         cleanAnnotations = annotations
@@ -1347,6 +1375,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
 
     /// The editor stays open afterwards, as it does after a temporary link.
     func upload(completion: @escaping () -> Void) {
+        let snapshot = model.exportSnapshot()
         guard let export = model.exportImage() else {
             CaptureUploadService.shared.announce(failure: .invalidArtifact)
             completion()
@@ -1363,7 +1392,7 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             }
             do {
                 let outcome = try await CaptureUploadService.shared.upload(pngData: data)
-                self?.model.markExported()
+                self?.model.markExported(snapshot)
                 CaptureUploadService.shared.announce(outcome)
             } catch let failure as CaptureUploadService.Failure {
                 CaptureUploadService.shared.announce(failure: failure)
