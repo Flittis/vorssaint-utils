@@ -478,9 +478,9 @@ final class ScreenshotService: ObservableObject {
             upload: { [weak self] completion in
                 guard let self else {
                     completion()
-                    return
+                    return nil
                 }
-                self.uploadDirect(capture, completion: completion)
+                return self.uploadDirect(capture, completion: completion)
             },
             onClose: { [weak self] in self?.preview = nil })
         preview = controller
@@ -647,10 +647,10 @@ final class ScreenshotService: ObservableObject {
     }
 
     private func uploadDirect(_ capture: ScreenshotSelectionController.Capture,
-                              completion: @escaping () -> Void) {
+                              completion: @escaping () -> Void) -> Task<Void, Never> {
         let destination = CaptureUploadService.shared.destination
         let downscale = UserDefaults.standard.bool(forKey: DefaultsKey.screenshotDownscale)
-        Task { @MainActor in
+        return Task { @MainActor in
             let data = await Task.detached(priority: .userInitiated) {
                 guard let export = Self.flatten(capture, downscaleTo1x: downscale) else {
                     return nil as Data?
@@ -665,6 +665,7 @@ final class ScreenshotService: ObservableObject {
             do {
                 CaptureUploadService.shared.announce(
                     try await CaptureUploadService.shared.upload(pngData: data, to: destination))
+            } catch is CancellationError {
             } catch let failure as CaptureUploadService.Failure {
                 CaptureUploadService.shared.announce(failure: failure)
             } catch {

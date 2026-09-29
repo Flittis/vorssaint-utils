@@ -1143,6 +1143,8 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     let model: ScreenshotEditorModel
     private var window: NSWindow?
     private var keyMonitor: Any?
+    /// One upload at a time; discarding the edits stops it.
+    private var uploadTask: Task<Void, Never>?
     private var scrollMonitor: Any?
 
     var protectedWindowIDs: Set<CGWindowID> {
@@ -1374,7 +1376,10 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
     }
 
     /// The editor stays open afterwards, as it does after a temporary link.
+    /// A second click while one is on its way does nothing, and the first
+    /// one's completion ends both.
     func upload(completion: @escaping () -> Void) {
+        guard uploadTask == nil else { return }
         let destination = CaptureUploadService.shared.destination
         let snapshot = model.exportSnapshot()
         guard let export = model.exportImage() else {
@@ -1382,13 +1387,16 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
             completion()
             return
         }
-        Task { @MainActor [weak self] in
+        uploadTask = Task { @MainActor [weak self] in
+            defer {
+                self?.uploadTask = nil
+                completion()
+            }
             let data = await Task.detached(priority: .userInitiated) {
                 ScreenshotRenderer.compactPNGData(from: export.image, scale: export.scale)
             }.value
             guard let data else {
                 CaptureUploadService.shared.announce(failure: .invalidArtifact)
-                completion()
                 return
             }
             do {
@@ -1396,12 +1404,12 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
                                                                            to: destination)
                 self?.model.markExported(snapshot)
                 CaptureUploadService.shared.announce(outcome)
+            } catch is CancellationError {
             } catch let failure as CaptureUploadService.Failure {
                 CaptureUploadService.shared.announce(failure: failure)
             } catch {
                 CaptureUploadService.shared.announce(failure: .unavailable)
             }
-            completion()
         }
     }
 
@@ -1561,7 +1569,11 @@ final class ScreenshotEditorController: NSObject, NSWindowDelegate {
         alert.addButton(withTitle: strings.discardConfirm)
         alert.addButton(withTitle: strings.cancel)
         alert.alertStyle = .warning
-        return alert.runModal() == .alertFirstButtonReturn
+        guard alert.runModal() == .alertFirstButtonReturn else { return false }
+        // What was discarded is not sent. A close with nothing to discard
+        // lets an upload finish, the way it finishes after the preview.
+        uploadTask?.cancel()
+        return true
     }
 
     func windowWillClose(_ notification: Notification) {

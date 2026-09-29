@@ -59,12 +59,10 @@ struct CaptureUploadSettings: View {
                                   fields: destination.queryItems,
                                   addTitle: strings.addParameter,
                                   headers: false)
-                            .settingsSectionAnchor(.captureUploadParameters)
                         fieldRows(title: strings.headersTitle,
                                   fields: destination.headers,
                                   addTitle: strings.addHeader,
                                   headers: true)
-                            .settingsSectionAnchor(.captureUploadHeaders)
                         Text(String(format: strings.fileNameCaptionFormat,
                                     CaptureUploadSupport.fileNamePlaceholder))
                             .font(.caption)
@@ -80,7 +78,7 @@ struct CaptureUploadSettings: View {
         } header: {
             Text(strings.sectionTitle)
         }
-        .onDisappear { liftAddressParts(highlight: false) }
+        .onDisappear { liftAddressQuery(showingRows: false) }
     }
 
     private var addressRow: some View {
@@ -95,9 +93,9 @@ struct CaptureUploadSettings: View {
                     .autocorrectionDisabled()
                     .accessibilityLabel(strings.addressLabel)
                     .focused($addressFocused)
-                    .onSubmit { liftAddressParts(highlight: true) }
+                    .onSubmit { liftAddressQuery(showingRows: true) }
                     .onChange(of: addressFocused) { _, focused in
-                        if !focused { liftAddressParts(highlight: true) }
+                        if !focused { liftAddressQuery(showingRows: true) }
                     }
             }
             if addressNeedsAttention {
@@ -108,29 +106,24 @@ struct CaptureUploadSettings: View {
         }
     }
 
-    /// A query or credentials in the address become rows, which are shown and
-    /// highlighted so the move is not a surprise. Leaving the page moves them
-    /// quietly, so the address is never left unusable.
-    private func liftAddressParts(highlight: Bool) {
-        guard let lift = CaptureUploadSupport.liftingAddressParts(destination.wrappedValue) else {
+    /// A query in the address becomes rows, and More options opens so they
+    /// show right below it and the move is not a surprise. Leaving the page
+    /// moves it quietly.
+    private func liftAddressQuery(showingRows: Bool) {
+        guard let lifted = CaptureUploadSupport.liftingAddressQuery(destination.wrappedValue) else {
             return
         }
-        destination.wrappedValue = lift.destination
-        guard highlight else { return }
+        destination.wrappedValue = lifted
+        guard showingRows else { return }
         withAnimation(.easeInOut(duration: 0.18)) { showsMoreOptions = true }
-        let anchor: SettingsSectionAnchor = lift.movedCredentials
-            ? .captureUploadHeaders : .captureUploadParameters
-        DispatchQueue.main.async {
-            SettingsRouter.shared.request(FeatureSettingsDestination(.screenshot, sectionAnchor: anchor))
-        }
     }
 
-    /// An empty field is simply no destination and says nothing.
+    /// Reads the address the way an upload does. An empty field is simply no
+    /// destination and says nothing.
     private var addressNeedsAttention: Bool {
         let current = destination.wrappedValue
-        let usable = CaptureUploadSupport.liftingAddressParts(current)?.destination ?? current
         return !current.url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && CaptureUploadSupport.endpoint(usable) == nil
+            && CaptureUploadSupport.endpoint(CaptureUploadSupport.sendable(current)) == nil
     }
 
     private func fieldRows(title: String,

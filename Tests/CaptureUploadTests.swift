@@ -20,10 +20,13 @@ enum CaptureUploadTests {
         suite.expect(CaptureUploadSupport.sanitizedEndpoint("HTTPS://example.com")?.absoluteString
                 == "https://example.com",
                "the scheme is read whatever its case")
+        suite.expect(CaptureUploadSupport.sanitizedEndpoint("https://user:secret@example.com/upload")?
+                .absoluteString == "https://example.com/upload",
+               "a user name and password never reach the URL a request is sent to")
         for rejected in ["", "example.com/upload", "http://example.com/upload",
-                         "https://user:secret@example.com/upload",
                          "https://example.com/upload#part", "https:///upload",
-                         "ftp://example.com"] {
+                         "https://a%3Ab:pw@example.com/", "https://a%FF:pw@example.com/",
+                         "https://user:p%FF@example.com/", "ftp://example.com"] {
             suite.expect(CaptureUploadSupport.sanitizedEndpoint(rejected) == nil,
                    "an address an upload cannot use is refused: \(rejected)")
         }
@@ -281,31 +284,78 @@ enum CaptureUploadTests {
                 local: Destination(url: "https://other.example.com/u?token=secret")).url
                 == "https://example.com/u",
                "a query belongs to one server and is not carried to another address")
-        let pasted = Destination(url: " https://example.com/u?token=a%20b&q=1+2&flag&=x ",
+        let pasted = Destination(url: " https://example.com/u?token=a%20b&q=1+2&empty= ",
                                  queryItems: [Field(name: "kept", value: "1")])
-        let lifted = CaptureUploadSupport.liftingAddressParts(pasted)?.destination
+        let lifted = CaptureUploadSupport.liftingAddressQuery(pasted)
         suite.expect(lifted?.url == "https://example.com/u"
-                && lifted?.queryItems.map(\.name) == ["token", "q", "flag", "kept"]
+                && lifted?.queryItems.map(\.name) == ["token", "q", "empty", "kept"]
                 && lifted?.queryItems.map(\.value) == ["a b", "1 2", "", "1"],
                "a query pasted into the address becomes parameter rows ahead of the existing ones")
-        suite.expect(CaptureUploadSupport.liftingAddressParts(Destination(url: "https://example.com/u")) == nil
-                && CaptureUploadSupport.liftingAddressParts(Destination(
+        let mixed = CaptureUploadSupport.liftingAddressQuery(
+            Destination(url: "https://example.com/index.php?/api/upload&token=a&flag&=x&+=y&pad=+z&raw=%FF"))
+        suite.expect(mixed?.url
+                    == "https://example.com/index.php?/api/upload&flag&=x&+=y&pad=+z&raw=%FF"
+                && mixed?.queryItems.map(\.name) == ["token"]
+                && mixed.flatMap {
+                    CaptureUploadSupport.uploadURL(destination: $0, fileName: "a.png")
+                }?.query == "/api/upload&flag&=x&+=y&pad=+z&raw=%FF&token=a",
+               "a query part that is not a name and value pair stays in the address as typed")
+        suite.expect(CaptureUploadSupport.liftingAddressQuery(Destination(url: "https://example.com/u")) == nil
+                && CaptureUploadSupport.liftingAddressQuery(Destination(url: "https://example.com/upload?abc123")) == nil
+                && CaptureUploadSupport.liftingAddressQuery(Destination(url: "https://example.com/index.php?/api/upload")) == nil
+                && CaptureUploadSupport.liftingAddressQuery(Destination(
                     url: "https://example.com/u?a=1",
                     queryItems: (0..<CaptureUploadSupport.maximumFields).map { Field(name: "p\($0)") })) == nil,
-               "an address without a query, or with more rows than fit, stays as typed")
-        let basic = CaptureUploadSupport.liftingAddressParts(
-            Destination(url: "https://user:p%40ss@example.com/"))
-        suite.expect(basic?.movedCredentials == true && basic?.movedQuery == false
-                && basic?.destination.url == "https://example.com/"
-                && basic?.destination.headers.map(\.name) == ["Authorization"]
-                && basic?.destination.headers.first?.value
-                    == "Basic " + Data("user:p@ss".utf8).base64EncodedString()
-                && basic.map { CaptureUploadSupport.endpoint($0.destination) != nil } == true,
-               "a user name and password in the address become an Authorization: Basic header")
-        suite.expect(CaptureUploadSupport.liftingAddressParts(Destination(
-                    url: "https://user:pw@example.com/",
-                    headers: [Field(name: "authorization", value: "Bearer x")])) == nil,
-               "credentials never replace an Authorization header that is already set")
+               "an address without a pair to move, or with more rows than fit, stays as typed")
+        let oldToken = Field(name: " token ", value: "old")
+        let replaced = CaptureUploadSupport.liftingAddressQuery(Destination(
+            url: "https://example.com/u?token=new&dir=a",
+            queryItems: [Field(name: "kept", value: "1"), oldToken,
+                         Field(name: "token", value: "older")]))?.queryItems
+        suite.expect(replaced?.map(\.name) == ["dir", "kept", " token "]
+                && replaced?.map(\.value) == ["a", "1", "new"]
+                && replaced?[2].id == oldToken.id,
+               "a pasted name replaces the rows by that name where the first of them stands")
+        let repeated = CaptureUploadSupport.liftingAddressQuery(Destination(
+            url: "https://example.com/u?a=1&a=2",
+            queryItems: [Field(name: "a", value: "old"), Field(name: "b", value: "2")]))?.queryItems
+        suite.expect(repeated?.map(\.name) == ["a", "a", "b"]
+                && repeated?.map(\.value) == ["1", "2", "2"],
+               "a name pasted twice keeps both values in place of the old row")
+        let full = (0..<CaptureUploadSupport.maximumFields).map { Field(name: "p\($0)", value: "old") }
+        suite.expect(CaptureUploadSupport.liftingAddressQuery(Destination(
+                    url: "https://example.com/u?p0=new", queryItems: full))?
+                .queryItems.first?.value == "new",
+               "replacing a row fits even when every row is taken")
+        let bareKey = Destination(url: "https://example.com/upload?abc123")
+        suite.expect(CaptureUploadSupport.portable(bareKey).url == "https://example.com/upload"
+                && CaptureUploadSupport.portable(bareKey).queryItems.isEmpty
+                && CaptureUploadSupport.restored(CaptureUploadSupport.portable(bareKey), local: bareKey)
+                    == bareKey,
+               "a bare key left in the address is kept out of backups and restored on the same Mac")
+        let credentialed = Destination(url: "https://user:p%40ss@example.com/u")
+        let basic = CaptureUploadSupport.request(destination: credentialed, kind: .screenshot,
+                                                 contentLength: 1, fileName: "a.png")
+        suite.expect(CaptureUploadSupport.liftingAddressQuery(credentialed) == nil
+                && CaptureUploadSupport.host(raw: credentialed.encoded(), enabled: true) == "example.com"
+                && basic?.url?.absoluteString == "https://example.com/u"
+                && basic?.value(forHTTPHeaderField: "Authorization")
+                    == "Basic " + Data("user:p@ss".utf8).base64EncodedString(),
+               "a user name and password stay in the address and are sent as an Authorization: Basic header")
+        suite.expect(CaptureUploadSupport.request(
+                    destination: Destination(url: "https://:pw@example.com/"), kind: .screenshot,
+                    contentLength: 1, fileName: "a.png")?.value(forHTTPHeaderField: "Authorization")
+                    == "Basic " + Data(":pw".utf8).base64EncodedString()
+                && CaptureUploadSupport.request(
+                    destination: Destination(url: "https://@example.com/"), kind: .screenshot,
+                    contentLength: 1, fileName: "a.png")?.value(forHTTPHeaderField: "Authorization") == nil,
+               "a password alone is sent, and an empty user name sends no header")
+        suite.expect(CaptureUploadSupport.request(
+                    destination: Destination(url: "https://user:pw@example.com/",
+                                             headers: [Field(name: "authorization", value: "Bearer x")]),
+                    kind: .screenshot, contentLength: 1, fileName: "a.png")?
+                .value(forHTTPHeaderField: "Authorization") == "Bearer x",
+               "an Authorization row takes the place of the address's credentials, as in curl")
         suite.expect(CaptureUploadSupport.portable(.initial).encoded() == "",
                "an untouched setup backs up as the registered default")
         suite.expect(CaptureUploadSupport.restored(portable, local: destination) == destination,

@@ -8,7 +8,7 @@ import Foundation
 enum ScreenshotPreviewHoverTests {
     typealias DispatchQueue = NotchScreenRefreshContract.DispatchQueue
 
-    enum Action: Hashable { case edit, copy, save }
+    enum Action: Hashable { case edit, copy, save, discard }
 
     final class Model {
         var disabledActions: Set<Action> = []
@@ -23,6 +23,7 @@ enum ScreenshotPreviewHoverTests {
         var dismissWork: DispatchWorkItem?
         var autoDismissDuration: TimeInterval = 12
         var closed = false
+        var uploadTask: Task<Void, Never>?
         let model = Model()
         var action: (Action) -> Set<Action> = { [$0] }
         func close() { closed = true }
@@ -49,6 +50,17 @@ enum ScreenshotPreviewHoverTests {
         failedCopy.action = { _ in [] }
         failedCopy.perform(.copy)
         suite.expect(!failedCopy.closed, "failed Copy still leaves the preview available for retry")
+        let trashed = Controller()
+        let stopped = Task<Void, Never> { try? await Task.sleep(for: .seconds(60)) }
+        trashed.uploadTask = stopped
+        trashed.perform(.discard)
+        let copied = Controller()
+        let finishing = Task<Void, Never> { try? await Task.sleep(for: .seconds(60)) }
+        copied.uploadTask = finishing
+        copied.perform(.copy)
+        suite.expect(trashed.closed && stopped.isCancelled && copied.closed && !finishing.isCancelled,
+                     "Trash stops an upload on its way, and any other close lets it finish")
+        finishing.cancel()
         DispatchQueue.main = NotchScreenRefreshContract.Scheduler()
 
         for duration in [3.0, 12.0] {

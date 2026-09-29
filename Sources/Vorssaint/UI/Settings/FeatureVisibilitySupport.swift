@@ -55,8 +55,6 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
     case keyboardBrightnessShortcuts
     case fanControl
     case windowMaximizer
-    case captureUploadParameters
-    case captureUploadHeaders
 
     var page: SettingsPage {
         switch self {
@@ -73,8 +71,7 @@ enum SettingsSectionAnchor: String, CaseIterable, Hashable {
         case .clipboardHistory, .pastePlain: return .clipboard
         case .quickLauncher, .quickToggles, .micMute, .cameraPreview, .wallpaper, .scratchpad, .cleaningMode:
             return .quickTools
-        case .screenshot, .screenRecorder, .colorPicker, .screenOCR, .captureUploadParameters,
-             .captureUploadHeaders:
+        case .screenshot, .screenRecorder, .colorPicker, .screenOCR:
             return .screenshot
         case .keyboardBrightnessShortcuts: return .shortcuts
         case .fanControl: return .monitor
