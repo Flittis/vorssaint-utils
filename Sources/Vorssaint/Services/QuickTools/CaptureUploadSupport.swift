@@ -300,7 +300,7 @@ enum CaptureUploadSupport {
             Field(id: field.id, name: field.name,
                   value: isPlaceholderOnly(field.value) ? field.value : "")
         }
-        return Destination(url: destination.url,
+        return Destination(url: portableAddress(destination.url),
                            queryItems: destination.queryItems.map(row),
                            headers: destination.headers.map(row))
     }
@@ -311,11 +311,27 @@ enum CaptureUploadSupport {
             && expanded(trimmed, fileName: "").trimmingCharacters(in: .whitespaces).isEmpty
     }
 
-    /// A restore on the Mac that wrote the backup keeps the values already
-    /// here: a row left blank by the backup takes the local value of the first
-    /// row by the same name, as long as the address is still the same server.
+    /// The address a backup can carry: without the query or credentials it
+    /// holds, since either can be a key to the server.
+    static func portableAddress(_ address: String) -> String {
+        let trimmed = address.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard var components = URLComponents(string: trimmed),
+              components.host?.isEmpty == false
+        else { return "" }
+        components.percentEncodedQuery = nil
+        components.user = nil
+        components.password = nil
+        components.fragment = nil
+        return components.string ?? ""
+    }
+
+    /// A restore on the Mac that wrote the backup keeps what is already here
+    /// when the address still names the same server: the address takes back
+    /// the query the backup left out, and a row left blank takes the local
+    /// value of the first row by the same name.
     static func restored(_ restored: Destination, local: Destination) -> Destination {
-        guard let endpoint = endpoint(restored), endpoint == self.endpoint(local) else {
+        let address = portableAddress(restored.url)
+        guard endpoint(restored) != nil, address == portableAddress(local.url) else {
             return restored
         }
         func filled(_ rows: [Field], from source: [Field]) -> [Field] {
@@ -329,9 +345,63 @@ enum CaptureUploadSupport {
                 return Field(id: row.id, name: row.name, value: remaining.remove(at: index).value)
             }
         }
-        return Destination(url: restored.url,
+        return Destination(url: restored.url == address ? local.url : restored.url,
                            queryItems: filled(restored.queryItems, from: local.queryItems),
                            headers: filled(restored.headers, from: local.headers))
+    }
+
+    struct AddressLift {
+        let destination: Destination
+        let movedQuery: Bool
+        let movedCredentials: Bool
+    }
+
+    /// Turns a query typed or pasted into the address into parameter rows,
+    /// ahead of the rows already there, and a user name and password into an
+    /// Authorization: Basic header, so either is kept out of backups like any
+    /// other value. A part stays in the address when its rows would not fit,
+    /// or when an Authorization header is already set. Nil when nothing moved.
+    static func liftingAddressParts(_ destination: Destination) -> AddressLift? {
+        let trimmed = destination.url.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard var components = URLComponents(string: trimmed) else { return nil }
+        var result = destination
+        var movedQuery = false
+        var movedCredentials = false
+        if let query = components.percentEncodedQuery, !query.isEmpty {
+            let lifted = query.split(separator: "&").compactMap { pair -> Field? in
+                let parts = pair.split(separator: "=", maxSplits: 1,
+                                       omittingEmptySubsequences: false)
+                let name = formDecoded(parts[0])
+                guard !name.isEmpty else { return nil }
+                return Field(name: name, value: parts.count > 1 ? formDecoded(parts[1]) : "")
+            }
+            if !lifted.isEmpty, lifted.count + destination.queryItems.count <= maximumFields {
+                components.percentEncodedQuery = nil
+                result.queryItems = lifted + destination.queryItems
+                movedQuery = true
+            }
+        }
+        if let user = components.user, !user.isEmpty,
+           destination.headers.count < maximumFields,
+           !destination.headers.contains(where: {
+               $0.name.trimmingCharacters(in: .whitespaces).lowercased() == "authorization"
+           }) {
+            let token = Data("\(user):\(components.password ?? "")".utf8).base64EncodedString()
+            result.headers.append(Field(name: "Authorization", value: "Basic \(token)"))
+            components.user = nil
+            components.password = nil
+            movedCredentials = true
+        }
+        guard movedQuery || movedCredentials else { return nil }
+        result.url = components.string ?? destination.url
+        return AddressLift(destination: result, movedQuery: movedQuery,
+                           movedCredentials: movedCredentials)
+    }
+
+    /// A plus is a space in a query, the way servers read one.
+    private static func formDecoded(_ part: Substring) -> String {
+        let spaced = part.replacingOccurrences(of: "+", with: " ")
+        return spaced.removingPercentEncoding ?? spaced
     }
 
     private static func percentEncoded(_ value: String) -> String {

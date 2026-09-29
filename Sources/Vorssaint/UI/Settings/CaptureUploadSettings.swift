@@ -12,6 +12,7 @@ struct CaptureUploadSettings: View {
     @AppStorage(DefaultsKey.captureUploadDestination) private var raw = ""
     @AppStorage private var copiesLink: Bool
     @State private var showsMoreOptions = false
+    @FocusState private var addressFocused: Bool
 
     private let kind: CaptureUploadSupport.Kind
 
@@ -58,10 +59,12 @@ struct CaptureUploadSettings: View {
                                   fields: destination.queryItems,
                                   addTitle: strings.addParameter,
                                   headers: false)
+                            .settingsSectionAnchor(.captureUploadParameters)
                         fieldRows(title: strings.headersTitle,
                                   fields: destination.headers,
                                   addTitle: strings.addHeader,
                                   headers: true)
+                            .settingsSectionAnchor(.captureUploadHeaders)
                         Text(String(format: strings.fileNameCaptionFormat,
                                     CaptureUploadSupport.fileNamePlaceholder))
                             .font(.caption)
@@ -77,6 +80,7 @@ struct CaptureUploadSettings: View {
         } header: {
             Text(strings.sectionTitle)
         }
+        .onDisappear { liftAddressParts(highlight: false) }
     }
 
     private var addressRow: some View {
@@ -90,6 +94,11 @@ struct CaptureUploadSettings: View {
                     .labelsHidden()
                     .autocorrectionDisabled()
                     .accessibilityLabel(strings.addressLabel)
+                    .focused($addressFocused)
+                    .onSubmit { liftAddressParts(highlight: true) }
+                    .onChange(of: addressFocused) { _, focused in
+                        if !focused { liftAddressParts(highlight: true) }
+                    }
             }
             if addressNeedsAttention {
                 Text(strings.addressInvalid)
@@ -99,11 +108,29 @@ struct CaptureUploadSettings: View {
         }
     }
 
+    /// A query or credentials in the address become rows, which are shown and
+    /// highlighted so the move is not a surprise. Leaving the page moves them
+    /// quietly, so the address is never left unusable.
+    private func liftAddressParts(highlight: Bool) {
+        guard let lift = CaptureUploadSupport.liftingAddressParts(destination.wrappedValue) else {
+            return
+        }
+        destination.wrappedValue = lift.destination
+        guard highlight else { return }
+        withAnimation(.easeInOut(duration: 0.18)) { showsMoreOptions = true }
+        let anchor: SettingsSectionAnchor = lift.movedCredentials
+            ? .captureUploadHeaders : .captureUploadParameters
+        DispatchQueue.main.async {
+            SettingsRouter.shared.request(FeatureSettingsDestination(.screenshot, sectionAnchor: anchor))
+        }
+    }
+
     /// An empty field is simply no destination and says nothing.
     private var addressNeedsAttention: Bool {
         let current = destination.wrappedValue
+        let usable = CaptureUploadSupport.liftingAddressParts(current)?.destination ?? current
         return !current.url.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            && CaptureUploadSupport.endpoint(current) == nil
+            && CaptureUploadSupport.endpoint(usable) == nil
     }
 
     private func fieldRows(title: String,

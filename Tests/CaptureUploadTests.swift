@@ -255,7 +255,7 @@ enum CaptureUploadTests {
         // MARK: Backup
 
         let portable = CaptureUploadSupport.portable(destination)
-        suite.expect(portable.url == destination.url
+        suite.expect(portable.url == "https://example.com/upload"
                 && portable.headers.map(\.name) == destination.headers.map(\.name)
                 && portable.queryItems.map(\.name) == destination.queryItems.map(\.name)
                 && portable.headers.allSatisfy { $0.value.isEmpty }
@@ -268,6 +268,44 @@ enum CaptureUploadTests {
         suite.expect(CaptureUploadSupport.portable(templated).queryItems.map(\.value) == ["%filename%"]
                 && CaptureUploadSupport.portable(templated).headers.map(\.value) == ["%filename%", ""],
                "a value that is only %filename% travels in a backup, and one that also holds text does not")
+        let keyed = Destination(url: " https://user:pw@example.com/u?token=secret&dir=a#top ",
+                                headers: [Field(name: "Authorization", value: "Bearer x")])
+        suite.expect(CaptureUploadSupport.portable(keyed).url == "https://example.com/u"
+                && CaptureUploadSupport.portable(Destination(url: "not an address")).url == "",
+               "a backup leaves out the query and credentials an address carries")
+        suite.expect(CaptureUploadSupport.restored(CaptureUploadSupport.portable(keyed), local: keyed)
+                == keyed,
+               "restoring on the same Mac gives the address its query back")
+        suite.expect(CaptureUploadSupport.restored(
+                CaptureUploadSupport.portable(keyed),
+                local: Destination(url: "https://other.example.com/u?token=secret")).url
+                == "https://example.com/u",
+               "a query belongs to one server and is not carried to another address")
+        let pasted = Destination(url: " https://example.com/u?token=a%20b&q=1+2&flag&=x ",
+                                 queryItems: [Field(name: "kept", value: "1")])
+        let lifted = CaptureUploadSupport.liftingAddressParts(pasted)?.destination
+        suite.expect(lifted?.url == "https://example.com/u"
+                && lifted?.queryItems.map(\.name) == ["token", "q", "flag", "kept"]
+                && lifted?.queryItems.map(\.value) == ["a b", "1 2", "", "1"],
+               "a query pasted into the address becomes parameter rows ahead of the existing ones")
+        suite.expect(CaptureUploadSupport.liftingAddressParts(Destination(url: "https://example.com/u")) == nil
+                && CaptureUploadSupport.liftingAddressParts(Destination(
+                    url: "https://example.com/u?a=1",
+                    queryItems: (0..<CaptureUploadSupport.maximumFields).map { Field(name: "p\($0)") })) == nil,
+               "an address without a query, or with more rows than fit, stays as typed")
+        let basic = CaptureUploadSupport.liftingAddressParts(
+            Destination(url: "https://user:p%40ss@example.com/"))
+        suite.expect(basic?.movedCredentials == true && basic?.movedQuery == false
+                && basic?.destination.url == "https://example.com/"
+                && basic?.destination.headers.map(\.name) == ["Authorization"]
+                && basic?.destination.headers.first?.value
+                    == "Basic " + Data("user:p@ss".utf8).base64EncodedString()
+                && basic.map { CaptureUploadSupport.endpoint($0.destination) != nil } == true,
+               "a user name and password in the address become an Authorization: Basic header")
+        suite.expect(CaptureUploadSupport.liftingAddressParts(Destination(
+                    url: "https://user:pw@example.com/",
+                    headers: [Field(name: "authorization", value: "Bearer x")])) == nil,
+               "credentials never replace an Authorization header that is already set")
         suite.expect(CaptureUploadSupport.portable(.initial).encoded() == "",
                "an untouched setup backs up as the registered default")
         suite.expect(CaptureUploadSupport.restored(portable, local: destination) == destination,
