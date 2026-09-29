@@ -43,7 +43,9 @@ final class ScreenshotQuickPreviewController {
     private let shareFile: () -> URL?
     private let shareAnchor = ShelfSharePickerAnchor.Anchor()
     private var systemSharing = false
-    private let upload: (@escaping () -> Void) -> Void
+    private let upload: (@escaping () -> Void) -> Task<Void, Never>?
+    /// Trash stops it; any other way the preview closes lets it finish.
+    private var uploadTask: Task<Void, Never>?
     private let onClose: () -> Void
     private let model = ScreenshotQuickPreviewModel()
     private var panel: ScreenshotQuickPreviewPanel?
@@ -71,7 +73,7 @@ final class ScreenshotQuickPreviewController {
          share: @escaping (ScreenshotShareDuration,
                            @escaping @MainActor (ScreenshotShareRecord?) -> Void) -> Void,
          shareFile: @escaping () -> URL?,
-         upload: @escaping (@escaping () -> Void) -> Void,
+         upload: @escaping (@escaping () -> Void) -> Task<Void, Never>?,
          onClose: @escaping () -> Void) {
         self.capture = capture
         self.strings = strings
@@ -265,6 +267,7 @@ final class ScreenshotQuickPreviewController {
             scheduleAutoDismiss()
             return
         }
+        if requested == .discard { uploadTask?.cancel() }
         close()
     }
 
@@ -336,8 +339,10 @@ final class ScreenshotQuickPreviewController {
         dismissWork?.cancel()
         dismissWork = nil
         model.uploading = true
-        upload { [weak self] in
-            guard let self, !self.closed else { return }
+        uploadTask = upload { [weak self] in
+            guard let self else { return }
+            self.uploadTask = nil
+            guard !self.closed else { return }
             self.model.uploading = false
             self.scheduleAutoDismiss()
         }

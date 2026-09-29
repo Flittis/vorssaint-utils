@@ -24,7 +24,7 @@ final class CaptureUploadService {
         let link: URL?
     }
 
-    private let session: URLSession
+    private let configuration: URLSessionConfiguration
 
     private init() {
         let configuration = URLSessionConfiguration.ephemeral
@@ -32,19 +32,19 @@ final class CaptureUploadService {
         configuration.requestCachePolicy = .reloadIgnoringLocalCacheData
         configuration.httpCookieAcceptPolicy = .never
         configuration.httpShouldSetCookies = false
-        // A recording at full quality can run to gigabytes, so the limit is on
+        // A recording can take long over a slow connection, so the limit is on
         // silence between bytes rather than on the whole transfer.
         configuration.timeoutIntervalForRequest = 120
         configuration.timeoutIntervalForResource = 6 * 60 * 60
         configuration.waitsForConnectivity = false
-        session = URLSession(configuration: configuration)
+        self.configuration = configuration
     }
 
     /// Read once when the person asks for an upload and handed to it, so a
     /// change made while the file is prepared never redirects that upload.
     var destination: CaptureUploadSupport.Destination {
-        CaptureUploadSupport.Destination.decoded(
-            UserDefaults.standard.string(forKey: DefaultsKey.captureUploadDestination))
+        CaptureUploadSupport.sendable(CaptureUploadSupport.Destination.decoded(
+            UserDefaults.standard.string(forKey: DefaultsKey.captureUploadDestination)))
     }
 
     /// A hidden button is not a gate on its own, so the request path asks
@@ -68,13 +68,8 @@ final class CaptureUploadService {
                       prefix: FeatureStrings.screenshot(L10n.shared.language).fileNamePrefix,
                       date: Date()))
         else { throw Failure.invalidDestination }
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await session.upload(for: request, from: pngData)
-        } catch {
-            throw Failure.unavailable
-        }
+        let (data, response) = try await CaptureUploadTransfer.send(
+            request, body: .data(pngData), configuration: configuration)
         return try outcome(kind: .screenshot, host: host, data: data, response: response)
     }
 
@@ -97,13 +92,8 @@ final class CaptureUploadService {
                       prefix: FeatureStrings.recorder(L10n.shared.language).fileNamePrefix,
                       date: Date(), fileExtension: "mp4"))
         else { throw Failure.invalidDestination }
-        let data: Data
-        let response: URLResponse
-        do {
-            (data, response) = try await session.upload(for: request, fromFile: file)
-        } catch {
-            throw Failure.unavailable
-        }
+        let (data, response) = try await CaptureUploadTransfer.send(
+            request, body: .file(file), configuration: configuration)
         return try outcome(kind: .recording, host: host, data: data, response: response)
     }
 
@@ -145,11 +135,91 @@ final class CaptureUploadService {
     private func outcome(kind: CaptureUploadSupport.Kind,
                          host: String,
                          data: Data,
-                         response: URLResponse) throws -> Outcome {
-        guard let http = response as? HTTPURLResponse else { throw Failure.unavailable }
-        guard (200...299).contains(http.statusCode) else {
-            throw Failure.rejected(http.statusCode)
+                         response: HTTPURLResponse) throws -> Outcome {
+        guard (200...299).contains(response.statusCode) else {
+            throw Failure.rejected(response.statusCode)
         }
         return Outcome(kind: kind, host: host, link: CaptureUploadSupport.link(in: data))
+    }
+}
+
+/// One upload on a session of its own, so the reply can be bounded while it
+/// arrives. Redirects are refused: the file and the header values reach only
+/// the address the person set, and a POST never turns into a GET that some
+/// other page answers with success. A refusal comes back as its 3xx status.
+private final class CaptureUploadTransfer: NSObject, URLSessionDataDelegate {
+    enum Body {
+        case data(Data)
+        case file(URL)
+    }
+
+    private var continuation: CheckedContinuation<(Data, HTTPURLResponse), Error>?
+    private var response: HTTPURLResponse?
+    private var reply = Data()
+    /// Set once the reply is no longer read: a refusal needs no body, and one
+    /// too long to name a link is left unread.
+    private var stopped = false
+
+    /// Throws CancellationError when the calling task is cancelled, which
+    /// also cancels the request.
+    static func send(_ request: URLRequest,
+                     body: Body,
+                     configuration: URLSessionConfiguration) async throws -> (Data, HTTPURLResponse) {
+        try Task.checkCancellation()
+        let transfer = CaptureUploadTransfer()
+        let session = URLSession(configuration: configuration, delegate: transfer, delegateQueue: nil)
+        let task: URLSessionUploadTask
+        switch body {
+        case .data(let data): task = session.uploadTask(with: request, from: data)
+        case .file(let file): task = session.uploadTask(with: request, fromFile: file)
+        }
+        return try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { continuation in
+                transfer.continuation = continuation
+                task.resume()
+                session.finishTasksAndInvalidate()
+            }
+        } onCancel: {
+            task.cancel()
+        }
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask,
+                    willPerformHTTPRedirection response: HTTPURLResponse,
+                    newRequest request: URLRequest,
+                    completionHandler: @escaping (URLRequest?) -> Void) {
+        completionHandler(nil)
+    }
+
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask,
+                    didReceive response: URLResponse,
+                    completionHandler: @escaping (URLSession.ResponseDisposition) -> Void) {
+        self.response = response as? HTTPURLResponse
+        stopped = self.response.map { !(200...299).contains($0.statusCode) } ?? true
+            || response.expectedContentLength > Int64(CaptureUploadSupport.maximumResponseBytes)
+        completionHandler(stopped ? .cancel : .allow)
+    }
+
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive chunk: Data) {
+        guard !stopped else { return }
+        guard chunk.count <= CaptureUploadSupport.maximumResponseBytes - reply.count else {
+            stopped = true
+            reply = Data()
+            dataTask.cancel()
+            return
+        }
+        reply.append(chunk)
+    }
+
+    func urlSession(_ session: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
+        guard let continuation else { return }
+        self.continuation = nil
+        if error == nil || stopped, let response {
+            continuation.resume(returning: (stopped ? Data() : reply, response))
+        } else if !stopped, (error as? URLError)?.code == .cancelled {
+            continuation.resume(throwing: CancellationError())
+        } else {
+            continuation.resume(throwing: CaptureUploadService.Failure.unavailable)
+        }
     }
 }

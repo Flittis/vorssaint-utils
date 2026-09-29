@@ -1952,11 +1952,8 @@ enum FeatureCatalogTests {
                "every feature anchor belongs to its destination page")
         suite.expect(Set(AppFeature.allCases.compactMap(\.settingsDestination.sectionAnchor))
                 == Set(SettingsSectionAnchor.allCases).subtracting([
-                    .panelConfiguration, .keyboardBrightnessShortcuts, .captureUploadParameters,
-                    .captureUploadHeaders,
+                    .panelConfiguration, .keyboardBrightnessShortcuts,
                 ])
-                && SettingsSectionAnchor.captureUploadParameters.page == .screenshot
-                && SettingsSectionAnchor.captureUploadHeaders.page == .screenshot
                 && SettingsSectionAnchor.panelConfiguration.page == .general
                 && SettingsSectionAnchor.keyboardBrightnessShortcuts.page == .shortcuts,
                "feature anchors and standalone Settings anchors reach their pages")

@@ -128,19 +128,43 @@ enum CaptureUploadSupport {
     // MARK: - Address
 
     /// Unlike the temporary-link sanitizer, the path and any query the address
-    /// carries stay: they are part of where the server listens.
+    /// carries stay: they are part of where the server listens. A user name
+    /// and password leave the URL for a header, see `basicAuthorization`.
     static func sanitizedEndpoint(_ value: String) -> URL? {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty,
               var components = URLComponents(string: trimmed),
               components.scheme?.lowercased() == "https",
               let host = components.host, !host.isEmpty,
-              components.user == nil,
-              components.password == nil,
-              components.fragment == nil
+              components.fragment == nil,
+              credentials(in: components) != nil
         else { return nil }
         components.scheme = "https"
+        components.user = nil
+        components.password = nil
         return components.url
+    }
+
+    /// A user name and password in the address are sent the way curl sends
+    /// them, as an Authorization: Basic header, and stay in the address.
+    static func basicAuthorization(_ destination: Destination) -> String? {
+        let trimmed = destination.url.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let components = URLComponents(string: trimmed),
+              let credentials = credentials(in: components), !credentials.isEmpty
+        else { return nil }
+        return "Basic " + Data(credentials.utf8).base64EncodedString()
+    }
+
+    /// Empty when the address has no user name or password, and nil when a
+    /// header could not carry them as typed: escapes that are not text, or a
+    /// colon in the user name.
+    private static func credentials(in components: URLComponents) -> String? {
+        if components.percentEncodedUser != nil, components.user == nil { return nil }
+        if components.percentEncodedPassword != nil, components.password == nil { return nil }
+        let user = components.user ?? ""
+        let password = components.password ?? ""
+        guard !user.contains(":") else { return nil }
+        return user.isEmpty && password.isEmpty ? "" : "\(user):\(password)"
     }
 
     static func endpoint(_ destination: Destination) -> URL? {
@@ -154,7 +178,14 @@ enum CaptureUploadSupport {
     /// Nil while uploads are switched off, so every button reads one rule.
     static func host(raw: String?, enabled: Bool) -> String? {
         guard enabled else { return nil }
-        return host(Destination.decoded(raw))
+        return host(sendable(Destination.decoded(raw)))
+    }
+
+    /// The destination as the settings page leaves it once the address is
+    /// committed. Settings can close before that, so uploads and buttons read
+    /// a query still in the stored address the same way.
+    static func sendable(_ destination: Destination) -> Destination {
+        liftingAddressQuery(destination) ?? destination
     }
 
     // MARK: - Rows
@@ -211,7 +242,8 @@ enum CaptureUploadSupport {
     }
 
     /// The person's headers come after the transport's own, so a row can
-    /// replace Content-Type when a server insists on another.
+    /// replace Content-Type when a server insists on another, or the
+    /// Authorization the address's user name and password make.
     static func request(destination: Destination,
                         kind: Kind,
                         contentLength: Int,
@@ -223,6 +255,9 @@ enum CaptureUploadSupport {
         request.setValue("application/json, text/plain, */*", forHTTPHeaderField: "Accept")
         request.setValue("no-store", forHTTPHeaderField: "Cache-Control")
         request.setValue(String(contentLength), forHTTPHeaderField: "Content-Length")
+        if let authorization = basicAuthorization(destination) {
+            request.setValue(authorization, forHTTPHeaderField: "Authorization")
+        }
         let headerFileName = headerValue(forFileName: fileName)
         for field in sanitizedFields(destination.headers, headers: true) {
             request.setValue(expanded(field.value, fileName: headerFileName),
@@ -350,58 +385,73 @@ enum CaptureUploadSupport {
                            headers: filled(restored.headers, from: local.headers))
     }
 
-    struct AddressLift {
-        let destination: Destination
-        let movedQuery: Bool
-        let movedCredentials: Bool
-    }
-
-    /// Turns a query typed or pasted into the address into parameter rows,
-    /// ahead of the rows already there, and a user name and password into an
-    /// Authorization: Basic header, so either is kept out of backups like any
-    /// other value. A part stays in the address when its rows would not fit,
-    /// or when an Authorization header is already set. Nil when nothing moved.
-    static func liftingAddressParts(_ destination: Destination) -> AddressLift? {
+    /// Turns the name and value pairs of a query typed or pasted into the
+    /// address into parameter rows, so a key in it is kept out of backups like
+    /// any other value. A pasted name replaces the rows by that name, and a new
+    /// one goes ahead of the rows already there. A query part moves only when
+    /// its row sends the same name and value, so a bare key or a path style
+    /// query stays in the address as typed, where backups leave it out.
+    /// Nothing moves when the rows would not fit. Nil when nothing moved.
+    static func liftingAddressQuery(_ destination: Destination) -> Destination? {
         let trimmed = destination.url.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard var components = URLComponents(string: trimmed) else { return nil }
+        guard var components = URLComponents(string: trimmed),
+              let query = components.percentEncodedQuery, !query.isEmpty
+        else { return nil }
+        var lifted: [Field] = []
+        var kept: [Substring] = []
+        for part in query.split(separator: "&") {
+            if let field = liftedField(part) {
+                lifted.append(field)
+            } else {
+                kept.append(part)
+            }
+        }
+        let rows = merged(lifted, into: destination.queryItems)
+        guard !lifted.isEmpty, rows.count <= maximumFields else { return nil }
+        components.percentEncodedQuery = kept.isEmpty ? nil : kept.joined(separator: "&")
         var result = destination
-        var movedQuery = false
-        var movedCredentials = false
-        if let query = components.percentEncodedQuery, !query.isEmpty {
-            let lifted = query.split(separator: "&").compactMap { pair -> Field? in
-                let parts = pair.split(separator: "=", maxSplits: 1,
-                                       omittingEmptySubsequences: false)
-                let name = formDecoded(parts[0])
-                guard !name.isEmpty else { return nil }
-                return Field(name: name, value: parts.count > 1 ? formDecoded(parts[1]) : "")
-            }
-            if !lifted.isEmpty, lifted.count + destination.queryItems.count <= maximumFields {
-                components.percentEncodedQuery = nil
-                result.queryItems = lifted + destination.queryItems
-                movedQuery = true
-            }
-        }
-        if let user = components.user, !user.isEmpty,
-           destination.headers.count < maximumFields,
-           !destination.headers.contains(where: {
-               $0.name.trimmingCharacters(in: .whitespaces).lowercased() == "authorization"
-           }) {
-            let token = Data("\(user):\(components.password ?? "")".utf8).base64EncodedString()
-            result.headers.append(Field(name: "Authorization", value: "Basic \(token)"))
-            components.user = nil
-            components.password = nil
-            movedCredentials = true
-        }
-        guard movedQuery || movedCredentials else { return nil }
         result.url = components.string ?? destination.url
-        return AddressLift(destination: result, movedQuery: movedQuery,
-                           movedCredentials: movedCredentials)
+        result.queryItems = rows
+        return result
     }
 
-    /// A plus is a space in a query, the way servers read one.
-    private static func formDecoded(_ part: Substring) -> String {
-        let spaced = part.replacingOccurrences(of: "+", with: " ")
-        return spaced.removingPercentEncoding ?? spaced
+    /// A pasted name takes the place of the first row by that name and drops
+    /// the others, so a newer token never sits beside the old one.
+    private static func merged(_ lifted: [Field], into rows: [Field]) -> [Field] {
+        func name(_ field: Field) -> String {
+            field.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        let existing = Set(rows.map(name))
+        var merged = lifted.filter { !existing.contains($0.name) }
+        var replaced: Set<String> = []
+        for row in rows {
+            let pasted = lifted.filter { $0.name == name(row) }
+            if pasted.isEmpty {
+                merged.append(row)
+            } else if replaced.insert(name(row)).inserted {
+                merged.append(Field(id: row.id, name: row.name, value: pasted[0].value))
+                merged += pasted.dropFirst()
+            }
+        }
+        return merged
+    }
+
+    /// The row that sends a query part the same, or nil when the part is not
+    /// a name and value pair or a row would send it differently.
+    private static func liftedField(_ part: Substring) -> Field? {
+        let pair = part.split(separator: "=", maxSplits: 1, omittingEmptySubsequences: false)
+        guard pair.count > 1,
+              let name = formDecoded(pair[0]),
+              let value = formDecoded(pair[1])
+        else { return nil }
+        let field = Field(name: name, value: value)
+        return sanitizedFields([field], headers: false) == [field] ? field : nil
+    }
+
+    /// A plus is a space in a query, the way servers read one. Nil when the
+    /// escapes are not UTF-8 text, which a row cannot send back the same.
+    private static func formDecoded(_ part: Substring) -> String? {
+        part.replacingOccurrences(of: "+", with: " ").removingPercentEncoding
     }
 
     private static func percentEncoded(_ value: String) -> String {
