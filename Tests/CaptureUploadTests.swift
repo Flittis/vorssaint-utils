@@ -145,9 +145,11 @@ enum CaptureUploadTests {
             guard let data, let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
             return CGImageSourceCreateImageAtIndex(source, 0, nil)
         }
-        func hasAlpha(_ image: CGImage?) -> Bool {
-            switch image?.alphaInfo {
-            case .none, .noneSkipFirst, .noneSkipLast, nil: return false
+        /// Nil when there is no picture to look at, so a failed decode fails.
+        func hasAlpha(_ image: CGImage?) -> Bool? {
+            guard let alphaInfo = image?.alphaInfo else { return nil }
+            switch alphaInfo {
+            case .none, .noneSkipFirst, .noneSkipLast: return false
             default: return true
             }
         }
@@ -156,10 +158,10 @@ enum CaptureUploadTests {
             let compact = ScreenshotRenderer.compactPNGData(from: opaque, scale: 2)
             let plain = ScreenshotRenderer.pngData(from: opaque, scale: 2)
             suite.expect(compact?.starts(with: [137, 80, 78, 71, 13, 10, 26, 10]) == true
-                    && !hasAlpha(decoded(compact)) && hasAlpha(decoded(plain))
+                    && hasAlpha(decoded(compact)) == false && hasAlpha(decoded(plain)) == true
                     && (compact?.count ?? .max) <= (plain?.count ?? 0),
                    "an opaque screenshot uploads as a PNG without the alpha channel it never used")
-            suite.expect(hasAlpha(decoded(ScreenshotRenderer.compactPNGData(from: translucent, scale: 2))),
+            suite.expect(hasAlpha(decoded(ScreenshotRenderer.compactPNGData(from: translucent, scale: 2))) == true,
                    "a screenshot with a translucent pixel keeps its alpha channel")
         } else {
             suite.expect(false, "test pictures could be drawn")
