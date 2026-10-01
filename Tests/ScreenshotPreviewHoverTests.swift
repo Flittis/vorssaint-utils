@@ -21,7 +21,7 @@ enum ScreenshotPreviewHoverTests {
         var pointerInside = false
         var systemSharing = false
         var dismissWork: DispatchWorkItem?
-        var autoDismissDuration: TimeInterval = 12
+        var autoDismissDuration: TimeInterval? = 12
         var closed = false
         var uploadTask: Task<Void, Never>?
         let model = Model()
@@ -138,6 +138,14 @@ enum ScreenshotPreviewHoverTests {
             DispatchQueue.main.advance(duration)
             suite.expect(uploadingController.closed, "the preview dismisses once the upload has reported back")
         }
+
+        DispatchQueue.main = NotchScreenRefreshContract.Scheduler()
+        let persistentController = Controller()
+        persistentController.autoDismissDuration = nil
+        persistentController.scheduleAutoDismiss()
+        DispatchQueue.main.advance(60)
+        suite.expect(!persistentController.closed && DispatchQueue.main.pending == 0,
+                     "a persistent confirmation preview does not schedule automatic dismissal")
     }
 }
 
