@@ -333,11 +333,13 @@ enum SettingsSearchSupport {
         let upload = FeatureStrings.captureUpload(language)
         return [
             (.screenshot, [screenshot.pageTitle, screenshot.freezeToggle,
+                           screenshot.highlightWindowsToggle, screenshot.highlightWindowsCaption,
                            screenshot.loupeStartsOnToggle,
                            screenshot.fullScreenShortcutTitle, screenshot.previewPositionLabel,
                            screenshot.previewFocusToggle, screenshot.confirmationPreviewToggle,
                            screenshot.confirmationPreviewDurationLabel,
-                           screenshot.pinButton, screenshot.toolPixelate, screenshot.toolArrow,
+                           screenshot.pinButton, screenshot.toolPixelate, screenshot.toolBlur,
+                           screenshot.toolArrow, screenshot.addToShelfToggle,
                            upload.sectionTitle, upload.enabledToggle]),
             (.screenRecorder, [recorder.pageTitle, recorder.startButton,
                                recorder.systemAudioToggle, recorder.microphoneToggle,
